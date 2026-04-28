@@ -145,7 +145,7 @@ pilot-resource-tracker/
 - Проверяется, что пилот активен и в `sql`-режиме.
 - Создается запись в `trino_query_runs` со статусом `running`.
 - Выполняется SQL через `TrinoService`.
-- Валидируются колонки результата: обязательно `week_start_date` и `hours`, а также идентификатор сотрудника:
+- Валидируются колонки результата: обязательно `hours` и дата (`week_start_date` или `date`/`work_date`/`event_date`), а также идентификатор сотрудника:
   - либо `cas` (рекомендуется),
   - либо связка `full_name + rc`.
 - Если сотрудник с таким `cas` уже есть в системе, ФИО/РЦ подтягиваются автоматически из справочника.
@@ -229,7 +229,7 @@ curl -X POST http://localhost:8000/api/pilots \
     "trino_catalog": "hive",
     "trino_schema": "default",
     "trino_http_scheme": "http",
-    "sql_query": "SELECT week_start_date, cas, hours, load_percent FROM ...",
+    "sql_query": "SELECT cas, date, hours, load_percent FROM ...",
     "additional_pshe_default": 0,
     "is_active": true
   }'
@@ -276,7 +276,7 @@ curl -X POST \"http://localhost:8000/api/system/backup/import?run_refresh_all_sq
 4. После импорта открывайте ручной пилот и добавляйте назначения:
    - из выпадающего списка сотрудников,
    - или по одному `cas` (без повторного ввода ФИО/РЦ, если сотрудник уже в справочнике).
-5. Для SQL-пилотов можно возвращать только `cas + hours` (и `week_start_date`) — система сматчит сотрудника по `cas` и подтянет профиль из справочника.
+5. Для SQL-пилотов можно возвращать только `cas + hours` и дату (`date` или `week_start_date`) — система сама агрегирует по неделям, сматчит сотрудника по `cas` и подтянет профиль из справочника.
 
 ### Через API
 ```bash

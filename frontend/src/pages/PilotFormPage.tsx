@@ -224,11 +224,11 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
               >
                 <Input.TextArea
                   rows={12}
-                  placeholder="SELECT week_start_date, cas, hours, load_percent FROM ..."
+                  placeholder="SELECT cas, date, hours FROM ..."
                 />
               </Form.Item>
               <Typography.Text type="secondary" style={{ display: 'block', marginTop: -6, marginBottom: 10 }}>
-                Рекомендуемый минимальный формат: `week_start_date`, `cas`, `hours` (+ `load_percent` опционально). Если CAS уже есть в справочнике сотрудников, ФИО и РЦ подтянутся автоматически.
+                Рекомендуемый минимальный формат: `cas`, `date` (или `week_start_date`), `hours` (+ `load_percent` опционально). Если CAS уже есть в справочнике сотрудников, ФИО и РЦ подтянутся автоматически.
               </Typography.Text>
 
               <Divider style={{ marginTop: 8, marginBottom: 16 }}>Подключение к Trino</Divider>

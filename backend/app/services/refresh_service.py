@@ -36,7 +36,9 @@ class _NormalizedTrinoRow:
 
 
 class RefreshService:
-    REQUIRED_COLUMNS_BASE = {'week_start_date', 'hours'}
+    REQUIRED_COLUMNS_BASE = {'hours'}
+    WEEK_COLUMN_CANDIDATES = ('week_start_date',)
+    DATE_COLUMN_CANDIDATES = ('date', 'work_date', 'event_date')
 
     def __init__(self, session: Session, trino_service: TrinoService | None = None) -> None:
         self.session = session
@@ -94,6 +96,15 @@ class RefreshService:
                 f'Expected at least: {", ".join(sorted(self.REQUIRED_COLUMNS_BASE))}'
             )
 
+        has_week_or_date = any(column in columns_lower for column in self.WEEK_COLUMN_CANDIDATES) or any(
+            column in columns_lower for column in self.DATE_COLUMN_CANDIDATES
+        )
+        if not has_week_or_date:
+            raise RefreshValidationError(
+                'SQL query result must include `week_start_date`, or one of date columns: '
+                '`date`, `work_date`, `event_date`.'
+            )
+
         has_cas = 'cas' in columns_lower
         has_full_name_rc = {'full_name', 'rc'}.issubset(columns_lower)
         if not has_cas and not has_full_name_rc:
@@ -102,12 +113,31 @@ class RefreshService:
                 '`cas`, or both `full_name` and `rc`.'
             )
 
+    @staticmethod
+    def _get_row_value(row: dict[str, Any], *candidates: str) -> Any:
+        lowered_candidates = {candidate.lower() for candidate in candidates}
+        for key, value in row.items():
+            if key.lower() in lowered_candidates:
+                return value
+        return None
+
+    def _extract_week_start_date(self, row: dict[str, Any]) -> date:
+        week_value = self._get_row_value(row, *self.WEEK_COLUMN_CANDIDATES)
+        if week_value is None:
+            week_value = self._get_row_value(row, *self.DATE_COLUMN_CANDIDATES)
+        if week_value is None:
+            raise RefreshValidationError(
+                'Each SQL row should include `week_start_date` or one of date columns: '
+                '`date`, `work_date`, `event_date`.'
+            )
+        return to_week_start(week_value)
+
     def _normalize_row(self, row: dict[str, Any]) -> _NormalizedTrinoRow:
-        week_start_date = to_week_start(row['week_start_date'])
-        cas_raw = row.get('cas')
+        week_start_date = self._extract_week_start_date(row)
+        cas_raw = self._get_row_value(row, 'cas')
         cas = str(cas_raw).strip() if cas_raw is not None and str(cas_raw).strip() else None
-        full_name_raw = row.get('full_name')
-        rc_raw = row.get('rc')
+        full_name_raw = self._get_row_value(row, 'full_name')
+        rc_raw = self._get_row_value(row, 'rc')
         full_name = str(full_name_raw).strip() if full_name_raw is not None and str(full_name_raw).strip() else None
         rc = str(rc_raw).strip() if rc_raw is not None and str(rc_raw).strip() else None
 
@@ -116,11 +146,11 @@ class RefreshService:
                 'Each SQL row should contain cas, or both full_name and rc.'
             )
 
-        hours = as_decimal(row.get('hours'))
+        hours = as_decimal(self._get_row_value(row, 'hours'))
         if hours < 0:
             raise RefreshValidationError('hours should not be negative')
 
-        load_percent_raw = row.get('load_percent')
+        load_percent_raw = self._get_row_value(row, 'load_percent')
 
         norm_hours, norm_pshe, norm_load = normalize_assignment_values(
             hours=hours,
@@ -138,6 +168,53 @@ class RefreshService:
             load_percent=norm_load,
             pshe=norm_pshe,
         )
+
+    def _aggregate_rows_by_week_and_employee(
+        self, rows: list[_NormalizedTrinoRow]
+    ) -> list[_NormalizedTrinoRow]:
+        if not rows:
+            return []
+
+        buckets: dict[tuple[date, str], _NormalizedTrinoRow] = {}
+
+        for item in rows:
+            identity = f'cas:{item.cas.lower()}' if item.cas else f'name_rc:{item.full_name.lower()}|{item.rc.lower()}'
+            key = (item.week_start_date, identity)
+            existing = buckets.get(key)
+            if not existing:
+                buckets[key] = _NormalizedTrinoRow(
+                    week_start_date=item.week_start_date,
+                    cas=item.cas,
+                    full_name=item.full_name,
+                    rc=item.rc,
+                    hours=item.hours,
+                    load_percent=Decimal('0'),
+                    pshe=Decimal('0'),
+                )
+                continue
+
+            existing.hours += item.hours
+            if not existing.full_name and item.full_name:
+                existing.full_name = item.full_name
+            if not existing.rc and item.rc:
+                existing.rc = item.rc
+
+        work_hours_per_week = Decimal(str(settings.work_hours_per_week))
+        aggregated_rows: list[_NormalizedTrinoRow] = []
+        for row in buckets.values():
+            norm_hours, norm_pshe, norm_load = normalize_assignment_values(
+                hours=row.hours,
+                pshe=None,
+                load_percent=None,
+                work_hours_per_week=work_hours_per_week,
+            )
+            row.hours = norm_hours
+            row.pshe = norm_pshe
+            row.load_percent = norm_load
+            aggregated_rows.append(row)
+
+        aggregated_rows.sort(key=lambda item: (item.week_start_date, item.cas or '', item.full_name or '', item.rc or ''))
+        return aggregated_rows
 
     def _create_query_run(self, pilot_id: int) -> TrinoQueryRun:
         run = TrinoQueryRun(
@@ -216,6 +293,7 @@ class RefreshService:
             )
             self._validate_columns(result)
             normalized_rows = [self._normalize_row(row) for row in result.rows]
+            aggregated_rows = self._aggregate_rows_by_week_and_employee(normalized_rows)
 
             self.session.execute(
                 delete(PilotEmployeeAssignment).where(
@@ -224,7 +302,7 @@ class RefreshService:
                 )
             )
 
-            for item in normalized_rows:
+            for item in aggregated_rows:
                 employee = self._get_or_create_employee(item.cas, item.full_name, item.rc)
                 assignment = PilotEmployeeAssignment(
                     pilot_id=pilot.id,
@@ -242,11 +320,20 @@ class RefreshService:
             self.session.commit()
             self._mark_run_success(run.id, len(normalized_rows))
 
+            aggregated_count = len(aggregated_rows)
+            source_rows_count = len(normalized_rows)
+            message = 'Pilot refreshed successfully'
+            if aggregated_count != source_rows_count:
+                message = (
+                    'Pilot refreshed successfully. '
+                    f'Aggregated {source_rows_count} source rows into {aggregated_count} weekly assignments.'
+                )
+
             return RefreshPilotResponse(
                 pilot_id=pilot.id,
                 pilot_name=pilot.name,
-                rows_processed=len(normalized_rows),
-                message='Pilot refreshed successfully',
+                rows_processed=aggregated_count,
+                message=message,
             )
 
         except Exception as exc:

@@ -20,7 +20,7 @@ const ASSIGNMENTS_CSV_TEMPLATE_CONTENT = [
 ].join('\n');
 
 const TRINO_SQL_TEMPLATE_CONTENT = `SELECT
-    date_trunc('week', event_date) AS week_start_date,
+    CAST(event_date AS DATE) AS date,
     cas,
     SUM(hours_spent) AS hours,
     SUM(hours_spent) / 40.0 * 100 AS load_percent
