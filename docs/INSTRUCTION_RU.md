@@ -88,6 +88,12 @@ npm run dev
 
 Если сотрудник с таким `cas` уже есть в справочнике, сервис подтянет ФИО/РЦ автоматически.
 
+По подключению Trino:
+- обязательны `host` и `user`;
+- `catalog/schema` опциональны;
+- если указываете `schema`, обязательно укажите и `catalog`;
+- если используете fully-qualified SQL (`catalog.schema.table`), можно оставить `catalog/schema` пустыми в настройках сервиса.
+
 ## 7. Перенос данных между коллегами
 
 В разделе `Бэкапы`:
@@ -128,18 +134,21 @@ docker compose down
 ## 9. Типовые проблемы и решения
 
 1. `Trino is not configured`
-- Заполните `TRINO_*` в `.env` или поля Trino в карточке SQL-пилота.
+- Заполните минимум `TRINO_HOST` и `TRINO_USER` в `.env` или в карточке SQL-пилота.
 
-2. `Employee with CAS ... not found`
+2. `TRINO_SCHEMA requires TRINO_CATALOG`
+- Либо укажите и каталог, и схему, либо очистите поле схемы и пишите `catalog.schema.table` прямо в SQL.
+
+3. `Employee with CAS ... not found`
 - Импортируйте сотрудника в справочник (`Сотрудники -> Импорт CSV`) или добавьте `full_name + rc`.
 
-3. Пустой dashboard после запуска
+4. Пустой dashboard после запуска
 - Выполните seed:
 ```bash
 docker compose exec backend python scripts/seed.py
 ```
 
-4. Порт занят (`5173`, `8000`, `5432`)
+5. Порт занят (`5173`, `8000`, `5432`)
 - Освободите порт или измените маппинг в `docker-compose.yml`.
 
 ## 10. Проверка перед демо

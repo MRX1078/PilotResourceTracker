@@ -89,12 +89,12 @@ pilot-resource-tracker/
 - `COST_PER_MINUTE` (по умолчанию 23)
 
 ### Для Trino (SQL-режим)
-- `TRINO_HOST`
+- `TRINO_HOST` (обязательно)
 - `TRINO_PORT`
-- `TRINO_USER`
+- `TRINO_USER` (обязательно)
 - `TRINO_PASSWORD` (опционально)
-- `TRINO_CATALOG`
-- `TRINO_SCHEMA`
+- `TRINO_CATALOG` (опционально, но нужен если указываете `TRINO_SCHEMA`)
+- `TRINO_SCHEMA` (опционально)
 - `TRINO_HTTP_SCHEME`
 
 ### Для frontend
@@ -211,6 +211,7 @@ curl -X POST http://localhost:8000/api/pilots \
 7. В карточке пилота нажмите `Refresh SQL`.
 
 Если поля подключения в форме оставить пустыми, backend использует общие переменные из `.env` (`TRINO_*`).
+Если в SQL пишете полные имена таблиц (`catalog.schema.table`), то `TRINO_CATALOG` и `TRINO_SCHEMA` можно не заполнять.
 
 ### Через API
 ```bash

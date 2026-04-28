@@ -64,10 +64,14 @@ class TrinoService:
 
     @staticmethod
     def _ensure_configured(connection: TrinoConnectionOptions) -> None:
-        if not connection.host or not connection.user or not connection.catalog or not connection.schema:
+        if not connection.host or not connection.user:
             raise TrinoConfigurationError(
-                'Trino is not configured. Please set TRINO_HOST, TRINO_USER, TRINO_CATALOG and TRINO_SCHEMA '
+                'Trino is not configured. Please set TRINO_HOST and TRINO_USER '
                 'in environment, or fill Trino connection fields in SQL pilot settings.'
+            )
+        if connection.schema and not connection.catalog:
+            raise TrinoConfigurationError(
+                'Trino connection is invalid: TRINO_SCHEMA requires TRINO_CATALOG.'
             )
 
     def _connect(self, overrides: TrinoConnectionOptions | None = None) -> trino.dbapi.Connection:
@@ -76,8 +80,6 @@ class TrinoService:
 
         assert connection.host is not None
         assert connection.user is not None
-        assert connection.catalog is not None
-        assert connection.schema is not None
 
         auth = BasicAuthentication(connection.user, connection.password) if connection.password else None
         return trino.dbapi.connect(
