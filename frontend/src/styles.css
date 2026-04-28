@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+
+:root {
+  color: #102a43;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(20, 184, 166, 0.2) 0%, transparent 34%),
+    radial-gradient(circle at 88% 8%, rgba(56, 189, 248, 0.18) 0%, transparent 30%),
+    linear-gradient(140deg, #f0fdf9 0%, #f5f8fb 45%, #ecf5ff 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+.app-root-layout {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.app-sider {
+  background: linear-gradient(180deg, #062b2f 0%, #0b4f55 58%, #0a3f4b 100%) !important;
+  box-shadow: 14px 0 36px rgba(6, 43, 47, 0.26);
+}
+
+.app-sider-inner {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 10px 14px;
+  position: relative;
+}
+
+.app-sider-inner::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  top: 26px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(153, 246, 228, 0.18) 0%, rgba(153, 246, 228, 0) 72%);
+  pointer-events: none;
+}
+
+.app-logo-block {
+  margin: 6px 10px 14px;
+  color: #e6fffb;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.app-logo-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%);
+  color: #043c39;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(45, 212, 191, 0.35);
+}
+
+.app-logo-title {
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.app-logo-subtitle {
+  color: rgba(229, 255, 251, 0.72) !important;
+  font-size: 12px;
+}
+
+.app-nav-menu {
+  background: transparent !important;
+  border-inline-end: none !important;
+  margin-top: 6px;
+}
+
+.app-nav-menu .ant-menu-item {
+  margin: 4px 8px !important;
+  border-radius: 10px;
+  height: 42px;
+  line-height: 42px;
+}
+
+.app-nav-menu .ant-menu-item-active {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.app-nav-menu .ant-menu-item-selected {
+  background: linear-gradient(90deg, rgba(45, 212, 191, 0.35), rgba(45, 212, 191, 0.16)) !important;
+}
+
+.app-sider-footer {
+  margin-top: auto;
+  margin-inline: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(153, 246, 228, 0.22);
+  background: rgba(4, 60, 57, 0.4);
+}
+
+.app-sider-footer-text {
+  color: rgba(229, 255, 251, 0.86) !important;
+  font-size: 12px;
+}
+
+.app-header {
+  background: rgba(255, 255, 255, 0.62);
+  padding: 14px 22px;
+  margin: 12px 24px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.app-header-title {
+  margin: 0 !important;
+  color: #0f172a !important;
+}
+
+.app-header-subtitle {
+  color: #34516f !important;
+  font-size: 14px;
+}
+
+.app-content {
+  padding: 0 24px 24px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.page-card {
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.08);
+  border: 1px solid rgba(15, 118, 110, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.page-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.12);
+}
+
+.page-grid-gap {
+  gap: 16px;
+}
+
+.warning-text {
+  color: #b54708;
+  font-weight: 600;
+}
+
+.text-prewrap {
+  white-space: pre-wrap;
+}
+
+.dashboard-hero-card {
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.06) 0%, rgba(59, 130, 246, 0.06) 100%);
+}
+
+.chart-hint {
+  display: inline-block;
+  margin-top: 8px;
+}
+
+@media (min-width: 992px) {
+  .app-sider {
+    position: sticky !important;
+    top: 0;
+    height: 100vh;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 991px) {
+  .app-header {
+    margin: 10px 12px 14px;
+    padding: 12px 14px;
+  }
+
+  .app-content {
+    padding: 0 12px 16px;
+  }
+}

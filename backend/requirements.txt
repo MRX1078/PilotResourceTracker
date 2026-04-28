@@ -1,0 +1,14 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.9
+alembic==1.16.4
+pydantic-settings==2.10.1
+python-dotenv==1.1.1
+trino==0.336.0
+python-dateutil==2.9.0.post0
+pytest==8.4.1
+httpx==0.28.1
+python-multipart==0.0.20
+
+eval-type-backport==0.2.2
