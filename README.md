@@ -2,6 +2,9 @@
 
 Внутренний веб-сервис для учета загрузки сотрудников по пилотам, расчета трудозатрат, стоимости ресурсов и оценки доходности.
 
+## Документация
+- Подробная инструкция по сервису, запуску и эксплуатации: [docs/INSTRUCTION_RU.md](/Users/maksimshatokhin/Documents/New%20project/pilot-resource-tracker/docs/INSTRUCTION_RU.md)
+
 ## Что реализовано
 - Backend на FastAPI + SQLAlchemy + PostgreSQL
 - Alembic миграции
