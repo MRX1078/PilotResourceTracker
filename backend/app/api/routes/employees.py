@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -103,6 +104,8 @@ async def import_employees_csv(
     created_count = 0
     updated_count = 0
     total_rows = 0
+    employees_cache: dict[str, Employee] = {}
+    created_in_batch: set[str] = set()
 
     for row_number, row in enumerate(reader, start=2):
         normalized = _normalize_csv_row(row)
@@ -127,10 +130,17 @@ async def import_employees_csv(
             errors.append(EmployeeCsvImportError(row_number=row_number, error='Missing rc'))
             continue
 
-        employee = db.scalar(select(Employee).where(Employee.cas == cas))
+        employee = employees_cache.get(cas)
+        if employee is None:
+            employee = db.scalar(select(Employee).where(Employee.cas == cas))
+            if employee is not None:
+                employees_cache[cas] = employee
+
         if not employee:
             employee = Employee(cas=cas, full_name=full_name, rc=rc)
             db.add(employee)
+            employees_cache[cas] = employee
+            created_in_batch.add(cas)
             created_count += 1
         else:
             changed = False
@@ -140,7 +150,7 @@ async def import_employees_csv(
             if employee.rc != rc:
                 employee.rc = rc
                 changed = True
-            if changed:
+            if changed and cas not in created_in_batch:
                 updated_count += 1
 
     if total_rows == 0:
@@ -157,7 +167,15 @@ async def import_employees_csv(
             },
         )
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail='CSV import failed due to CAS uniqueness conflict. '
+            'Please check duplicate or conflicting cas_id values.',
+        ) from exc
 
     return EmployeeCsvImportResponse(
         total_rows=total_rows,
