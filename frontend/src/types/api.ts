@@ -2,7 +2,7 @@ export type AccountingMode = 'manual' | 'sql';
 export type AssignmentSource = 'manual' | 'sql';
 export type QueryRunStatus = 'pending' | 'running' | 'success' | 'failed';
 
-export interface TrinoConnectionConfig {
+export interface TrinoConnectionSettings {
   trino_host: string | null;
   trino_port: number | null;
   trino_user: string | null;
@@ -18,7 +18,7 @@ export interface PilotMetricSnapshot {
   total_pshe: string;
 }
 
-export interface Pilot extends TrinoConnectionConfig {
+export interface Pilot {
   id: number;
   name: string;
   description: string | null;
@@ -38,7 +38,7 @@ export interface PilotListItem extends Pilot {
   last_refresh_started_at: string | null;
 }
 
-export interface PilotPayload extends Partial<TrinoConnectionConfig> {
+export interface PilotPayload {
   name: string;
   description?: string | null;
   annual_revenue: number;
@@ -207,6 +207,7 @@ export interface BackupImportResponse {
   imported_at: string;
   imported: BackupCounts;
   settings_from_backup: BackupSettings;
+  trino_settings_from_backup: TrinoConnectionSettings | null;
   refresh_all_result: RefreshAllResponse | null;
   warnings: string[];
 }
@@ -268,6 +269,13 @@ export interface TrinoRun {
   status: QueryRunStatus;
   error_message: string | null;
   rows_returned: number;
+}
+
+export interface PilotLatestRun {
+  pilot_id: number;
+  pilot_name: string;
+  has_successful_run: boolean;
+  last_run: TrinoRun | null;
 }
 
 export interface RefreshPilotResponse {

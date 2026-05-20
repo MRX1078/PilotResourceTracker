@@ -7,7 +7,14 @@ from sqlalchemy import engine_from_config, pool
 
 from app.config import settings
 from app.database import Base
-from app.models import assignment, employee, pilot, pilot_weekly_metric, trino_query_run  # noqa: F401
+from app.models import (  # noqa: F401
+    app_settings,
+    assignment,
+    employee,
+    pilot,
+    pilot_weekly_metric,
+    trino_query_run,
+)
 
 config = context.config
 config.set_main_option('sqlalchemy.url', settings.database_url)

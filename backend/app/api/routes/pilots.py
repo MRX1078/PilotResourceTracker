@@ -19,7 +19,6 @@ from app.schemas.pilot import (
     PilotUpdate,
 )
 from app.services.refresh_service import RefreshService
-from app.services.trino_service import TrinoConnectionOptions
 
 router = APIRouter(prefix='/pilots')
 
@@ -62,13 +61,6 @@ def list_pilots(db: Session = Depends(get_db)) -> list[PilotListItem]:
                 annual_revenue=pilot.annual_revenue,
                 accounting_mode=pilot.accounting_mode,
                 sql_query=pilot.sql_query,
-                trino_host=pilot.trino_host,
-                trino_port=pilot.trino_port,
-                trino_user=pilot.trino_user,
-                trino_password=None,
-                trino_catalog=pilot.trino_catalog,
-                trino_schema=pilot.trino_schema,
-                trino_http_scheme=pilot.trino_http_scheme,
                 additional_pshe_default=pilot.additional_pshe_default,
                 is_active=pilot.is_active,
                 created_at=pilot.created_at,
@@ -100,30 +92,7 @@ def refresh_all_sql_pilots(db: Session = Depends(get_db)):
 @router.post('/validate-sql', response_model=PilotSqlValidationResponse)
 def validate_sql_query(payload: PilotSqlValidationRequest, db: Session = Depends(get_db)):
     refresh_service = RefreshService(db)
-    connection_options = TrinoConnectionOptions(
-        host=payload.trino_host,
-        port=payload.trino_port,
-        user=payload.trino_user,
-        password=payload.trino_password,
-        catalog=payload.trino_catalog,
-        schema=payload.trino_schema,
-        http_scheme=payload.trino_http_scheme,
-    )
-    has_overrides = any(
-        (
-            connection_options.host,
-            connection_options.port is not None,
-            connection_options.user,
-            connection_options.password,
-            connection_options.catalog,
-            connection_options.schema,
-            connection_options.http_scheme,
-        )
-    )
-    is_valid, columns, message = refresh_service.validate_sql_query(
-        payload.sql_query,
-        connection_options=connection_options if has_overrides else None,
-    )
+    is_valid, columns, message = refresh_service.validate_sql_query(payload.sql_query)
     return PilotSqlValidationResponse(is_valid=is_valid, columns=columns, message=message)
 
 

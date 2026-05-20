@@ -15,7 +15,9 @@ from app.models.employee import Employee
 from app.models.pilot import Pilot
 from app.models.pilot_weekly_metric import PilotWeeklyMetric
 from app.models.trino_query_run import TrinoQueryRun
+from app.schemas.app_settings import TrinoSettings
 from app.schemas.backup import BackupCounts, BackupImportResponse, BackupSettings
+from app.services.app_settings_service import AppSettingsService
 from app.services.refresh_service import RefreshService
 
 
@@ -24,7 +26,7 @@ class BackupValidationError(ValueError):
 
 
 class BackupService:
-    BACKUP_VERSION = '1.0'
+    BACKUP_VERSION = '1.1'
 
     TABLE_MODELS = {
         'pilots': Pilot,
@@ -134,6 +136,18 @@ class BackupService:
             trino_query_runs=len(snapshot_data.get('trino_query_runs', [])),
         )
 
+    def _current_trino_settings_payload(self) -> dict[str, Any]:
+        instance = AppSettingsService(self.session).get()
+        return TrinoSettings(
+            trino_host=instance.trino_host,
+            trino_port=instance.trino_port,
+            trino_user=instance.trino_user,
+            trino_password=instance.trino_password,
+            trino_catalog=instance.trino_catalog,
+            trino_schema=instance.trino_schema,
+            trino_http_scheme=instance.trino_http_scheme,
+        ).model_dump()
+
     def export_snapshot(self) -> dict[str, Any]:
         data: dict[str, list[dict[str, Any]]] = {}
 
@@ -149,6 +163,7 @@ class BackupService:
             'version': self.BACKUP_VERSION,
             'exported_at': datetime.utcnow().isoformat() + 'Z',
             'settings': settings_payload.model_dump(),
+            'trino_settings': self._current_trino_settings_payload(),
             'counts': self._build_counts(data).model_dump(),
             'data': data,
         }
@@ -224,6 +239,14 @@ class BackupService:
                 f'Backup: {settings_from_backup.cost_per_minute}, current: {settings.cost_per_minute}.'
             )
 
+        trino_settings_from_backup: TrinoSettings | None = None
+        trino_settings_payload = snapshot.get('trino_settings')
+        if isinstance(trino_settings_payload, dict):
+            try:
+                trino_settings_from_backup = TrinoSettings.model_validate(trino_settings_payload)
+            except Exception as exc:
+                warnings.append(f'Could not parse trino_settings from backup: {exc}')
+
         try:
             for model in self.DELETE_ORDER:
                 self.session.execute(delete(model))
@@ -236,6 +259,9 @@ class BackupService:
             self.session.flush()
             self._reset_identity_sequences()
             self.session.commit()
+
+            if trino_settings_from_backup is not None:
+                AppSettingsService(self.session).update_trino_settings(trino_settings_from_backup)
 
         except Exception as exc:
             self.session.rollback()
@@ -257,6 +283,7 @@ class BackupService:
             imported_at=datetime.utcnow(),
             imported=self._build_counts(snapshot_data),
             settings_from_backup=settings_from_backup,
+            trino_settings_from_backup=trino_settings_from_backup,
             refresh_all_result=refresh_result,
             warnings=warnings,
         )

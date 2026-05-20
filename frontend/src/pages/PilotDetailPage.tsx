@@ -4,7 +4,6 @@ import {
   Card,
   Col,
   DatePicker,
-  Descriptions,
   Divider,
   Form,
   Input,
@@ -383,21 +382,18 @@ export const PilotDetailPage = () => {
           )}
 
           {pilot.accounting_mode === 'sql' && (
-            <Card size="small" title="Подключение Trino" style={{ marginTop: 8 }}>
-              <Descriptions
-                size="small"
-                column={{ xs: 1, sm: 2 }}
-                items={[
-                  { key: 'host', label: 'Host', children: pilot.trino_host || 'из .env' },
-                  { key: 'port', label: 'Port', children: pilot.trino_port ?? 'из .env' },
-                  { key: 'user', label: 'User', children: pilot.trino_user || 'из .env' },
-                  { key: 'password', label: 'Password', children: pilot.trino_password ? '********' : 'из .env / не задан' },
-                  { key: 'catalog', label: 'Catalog', children: pilot.trino_catalog || 'из .env' },
-                  { key: 'schema', label: 'Schema', children: pilot.trino_schema || 'из .env' },
-                  { key: 'scheme', label: 'HTTP scheme', children: pilot.trino_http_scheme || 'из .env' },
-                ]}
-              />
-            </Card>
+            <Alert
+              style={{ marginTop: 8 }}
+              type="info"
+              showIcon
+              message="Подключение к Trino задается один раз для всех SQL-пилотов"
+              description={
+                <>
+                  Параметры подключения хранятся глобально. Изменить их можно на странице{' '}
+                  <Link to="/backups">«Бэкап»</Link>.
+                </>
+              }
+            />
           )}
         </Space>
       </Card>

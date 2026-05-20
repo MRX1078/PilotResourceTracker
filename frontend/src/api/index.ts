@@ -11,6 +11,7 @@ import {
   EmployeeListItem,
   EmployeePilotLoad,
   Pilot,
+  PilotLatestRun,
   PilotListItem,
   PilotPayload,
   PilotWeeklyMetric,
@@ -19,7 +20,7 @@ import {
   ResourceByRcItem,
   ResourceLoadItem,
   SqlValidationResponse,
-  TrinoConnectionConfig,
+  TrinoConnectionSettings,
   TrinoRun,
   WeeklyCostPoint,
 } from '../types/api';
@@ -35,8 +36,13 @@ export const api = {
     (await apiClient.post<RefreshPilotResponse>(`/pilots/${pilotId}/refresh`)).data,
   refreshAllPilots: async () =>
     (await apiClient.post<RefreshAllResponse>('/pilots/refresh-all')).data,
-  validateSql: async (payload: { sql_query: string } & Partial<TrinoConnectionConfig>) =>
+  validateSql: async (payload: { sql_query: string }) =>
     (await apiClient.post<SqlValidationResponse>('/pilots/validate-sql', payload)).data,
+
+  getTrinoSettings: async () =>
+    (await apiClient.get<TrinoConnectionSettings>('/system/settings/trino')).data,
+  updateTrinoSettings: async (payload: TrinoConnectionSettings) =>
+    (await apiClient.put<TrinoConnectionSettings>('/system/settings/trino', payload)).data,
 
   getAssignments: async (pilotId: number, weekStartDate?: string) => {
     const params = weekStartDate ? { week_start_date: weekStartDate } : undefined;
@@ -141,6 +147,8 @@ export const api = {
 
   getTrinoRuns: async (limit = 100) =>
     (await apiClient.get<TrinoRun[]>('/trino-runs', { params: { limit } })).data,
+  getLatestRunsByPilot: async () =>
+    (await apiClient.get<PilotLatestRun[]>('/trino-runs/latest-by-pilot')).data,
 
   exportBackup: async () => {
     const response = await apiClient.get<Blob>('/system/backup/export', {

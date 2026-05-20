@@ -3,12 +3,30 @@ from decimal import Decimal
 
 import pytest
 
+from app.models.employee import Employee
 from app.services.refresh_service import RefreshService, RefreshValidationError
 from app.services.trino_service import TrinoQueryResult
 
 
 def _service() -> RefreshService:
     return RefreshService(session=None)  # type: ignore[arg-type]
+
+
+class _FakeSession:
+    """Minimal session stub for unit-testing `_get_or_create_employee`."""
+
+    def __init__(self) -> None:
+        self.added: list[Employee] = []
+        self.flush_calls = 0
+
+    def scalar(self, *_args, **_kwargs):
+        return None
+
+    def add(self, instance: Employee) -> None:
+        self.added.append(instance)
+
+    def flush(self) -> None:
+        self.flush_calls += 1
 
 
 def test_validate_columns_allows_cas_only_identifier() -> None:
@@ -75,6 +93,20 @@ def test_normalize_row_requires_identity_per_row() -> None:
     }
     with pytest.raises(RefreshValidationError, match='contain cas'):
         _service()._normalize_row(row)
+
+
+def test_get_or_create_employee_creates_placeholder_when_cas_unknown() -> None:
+    fake_session = _FakeSession()
+    service = RefreshService.__new__(RefreshService)
+    service.session = fake_session  # type: ignore[assignment]
+
+    employee = service._get_or_create_employee(cas='cas-unknown-999', full_name=None, rc=None)
+
+    assert employee.cas == 'cas-unknown-999'
+    assert employee.full_name == RefreshService.UNKNOWN_EMPLOYEE_FULL_NAME
+    assert employee.rc == RefreshService.UNKNOWN_EMPLOYEE_RC
+    assert fake_session.added == [employee]
+    assert fake_session.flush_calls == 1
 
 
 def test_aggregate_rows_by_week_and_employee_sums_daily_rows() -> None:

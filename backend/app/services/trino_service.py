@@ -5,6 +5,7 @@ from typing import Any
 
 import trino
 from trino.auth import BasicAuthentication
+from sqlalchemy.orm import Session
 
 from app.config import settings
 
@@ -31,7 +32,15 @@ class TrinoConnectionOptions:
 
 
 class TrinoService:
-    def __init__(self) -> None:
+    """Trino client. Reads connection settings from (in priority order):
+
+    1. explicit `connection_options` passed to a method call,
+    2. the DB-backed `app_settings` singleton (if a session is provided),
+    3. environment variables loaded into `app.config.settings`.
+    """
+
+    def __init__(self, session: Session | None = None) -> None:
+        self.session = session
         self.host = settings.trino_host
         self.port = settings.trino_port
         self.user = settings.trino_user
@@ -40,26 +49,59 @@ class TrinoService:
         self.schema = settings.trino_schema
         self.http_scheme = settings.trino_http_scheme
 
+    def _db_settings(self) -> TrinoConnectionOptions | None:
+        if self.session is None:
+            return None
+
+        # Local import to avoid circular import at module load time.
+        from app.services.app_settings_service import AppSettingsService
+
+        instance = AppSettingsService(self.session).get()
+        return TrinoConnectionOptions(
+            host=instance.trino_host,
+            port=instance.trino_port,
+            user=instance.trino_user,
+            password=instance.trino_password,
+            catalog=instance.trino_catalog,
+            schema=instance.trino_schema,
+            http_scheme=instance.trino_http_scheme,
+        )
+
     def _resolve_connection(self, overrides: TrinoConnectionOptions | None = None) -> TrinoConnectionOptions:
-        if overrides is None:
-            return TrinoConnectionOptions(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password,
-                catalog=self.catalog,
-                schema=self.schema,
-                http_scheme=self.http_scheme,
-            )
+        layers: list[TrinoConnectionOptions] = []
+        if overrides is not None:
+            layers.append(overrides)
+
+        db_layer = self._db_settings()
+        if db_layer is not None:
+            layers.append(db_layer)
+
+        env_layer = TrinoConnectionOptions(
+            host=self.host,
+            port=self.port,
+            user=self.user,
+            password=self.password,
+            catalog=self.catalog,
+            schema=self.schema,
+            http_scheme=self.http_scheme,
+        )
+        layers.append(env_layer)
+
+        def pick(field: str) -> Any:
+            for layer in layers:
+                value = getattr(layer, field)
+                if value not in (None, ''):
+                    return value
+            return None
 
         return TrinoConnectionOptions(
-            host=overrides.host or self.host,
-            port=overrides.port if overrides.port is not None else self.port,
-            user=overrides.user or self.user,
-            password=overrides.password if overrides.password is not None else self.password,
-            catalog=overrides.catalog or self.catalog,
-            schema=overrides.schema or self.schema,
-            http_scheme=overrides.http_scheme or self.http_scheme,
+            host=pick('host'),
+            port=pick('port'),
+            user=pick('user'),
+            password=pick('password'),
+            catalog=pick('catalog'),
+            schema=pick('schema'),
+            http_scheme=pick('http_scheme'),
         )
 
     @staticmethod
@@ -67,7 +109,7 @@ class TrinoService:
         if not connection.host or not connection.user:
             raise TrinoConfigurationError(
                 'Trino is not configured. Please set TRINO_HOST and TRINO_USER '
-                'in environment, or fill Trino connection fields in SQL pilot settings.'
+                'on the Backups page (Подключение к Trino) or in environment.'
             )
         if connection.schema and not connection.catalog:
             raise TrinoConfigurationError(

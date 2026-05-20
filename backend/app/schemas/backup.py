@@ -4,6 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.app_settings import TrinoSettings
 from app.schemas.refresh import RefreshAllResponse
 
 
@@ -25,5 +26,6 @@ class BackupImportResponse(BaseModel):
     imported_at: datetime
     imported: BackupCounts
     settings_from_backup: BackupSettings
+    trino_settings_from_backup: TrinoSettings | None = None
     refresh_all_result: RefreshAllResponse | None = None
     warnings: list[str] = []

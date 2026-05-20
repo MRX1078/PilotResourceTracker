@@ -16,7 +16,7 @@ from app.models.pilot import Pilot
 from app.models.trino_query_run import TrinoQueryRun
 from app.schemas.refresh import RefreshAllError, RefreshAllResponse, RefreshPilotResponse
 from app.services.metrics_service import as_decimal, normalize_assignment_values, recompute_pilot_metrics
-from app.services.trino_service import TrinoConnectionOptions, TrinoQueryResult, TrinoService
+from app.services.trino_service import TrinoQueryResult, TrinoService
 from app.utils.week import to_week_start
 
 
@@ -40,9 +40,12 @@ class RefreshService:
     WEEK_COLUMN_CANDIDATES = ('week_start_date',)
     DATE_COLUMN_CANDIDATES = ('date', 'work_date', 'event_date')
 
+    UNKNOWN_EMPLOYEE_FULL_NAME = 'Неизвестный сотрудник'
+    UNKNOWN_EMPLOYEE_RC = 'Неизвестный РЦ'
+
     def __init__(self, session: Session, trino_service: TrinoService | None = None) -> None:
         self.session = session
-        self.trino_service = trino_service or TrinoService()
+        self.trino_service = trino_service or TrinoService(session=session)
 
     def _get_or_create_employee(self, cas: str | None, full_name: str | None, rc: str | None) -> Employee:
         employee: Employee | None = None
@@ -57,13 +60,19 @@ class RefreshService:
                 employee.rc = rc
             return employee
 
-        # CAS-first matching flow: when only cas is provided and employee is not found,
-        # we ask user to preload employees, or provide full_name+rc in SQL for auto-create.
-        if cas and not employee and not (full_name and rc):
-            raise RefreshValidationError(
-                f'Employee with CAS `{cas}` was not found in directory. '
-                'Import employees first or include full_name and rc in SQL result.'
+        # CAS-first matching flow: if CAS is provided but employee is not in the
+        # directory and SQL doesn't carry full_name/rc, create a placeholder
+        # employee so the SQL refresh doesn't fail. User can later open the
+        # employee card and fill in the real full_name / rc.
+        if cas and not (full_name and rc):
+            placeholder = Employee(
+                cas=cas,
+                full_name=self.UNKNOWN_EMPLOYEE_FULL_NAME,
+                rc=self.UNKNOWN_EMPLOYEE_RC,
             )
+            self.session.add(placeholder)
+            self.session.flush()
+            return placeholder
 
         if not employee:
             if full_name and rc:
@@ -247,32 +256,6 @@ class RefreshService:
         run.error_message = None
         self.session.commit()
 
-    @staticmethod
-    def _pilot_connection_options(pilot: Pilot) -> TrinoConnectionOptions | None:
-        has_overrides = any(
-            (
-                pilot.trino_host,
-                pilot.trino_port is not None,
-                pilot.trino_user,
-                pilot.trino_password,
-                pilot.trino_catalog,
-                pilot.trino_schema,
-                pilot.trino_http_scheme,
-            )
-        )
-        if not has_overrides:
-            return None
-
-        return TrinoConnectionOptions(
-            host=pilot.trino_host,
-            port=pilot.trino_port,
-            user=pilot.trino_user,
-            password=pilot.trino_password,
-            catalog=pilot.trino_catalog,
-            schema=pilot.trino_schema,
-            http_scheme=pilot.trino_http_scheme,
-        )
-
     def refresh_single_pilot(self, pilot_id: int) -> RefreshPilotResponse:
         pilot = self.session.get(Pilot, pilot_id)
         if not pilot or not pilot.is_active:
@@ -287,10 +270,7 @@ class RefreshService:
         run = self._create_query_run(pilot.id)
 
         try:
-            result = self.trino_service.execute_query(
-                pilot.sql_query,
-                connection_options=self._pilot_connection_options(pilot),
-            )
+            result = self.trino_service.execute_query(pilot.sql_query)
             self._validate_columns(result)
             normalized_rows = [self._normalize_row(row) for row in result.rows]
             aggregated_rows = self._aggregate_rows_by_week_and_employee(normalized_rows)
@@ -371,13 +351,9 @@ class RefreshService:
             errors=errors,
         )
 
-    def validate_sql_query(
-        self,
-        sql_query: str,
-        connection_options: TrinoConnectionOptions | None = None,
-    ) -> tuple[bool, list[str], str]:
+    def validate_sql_query(self, sql_query: str) -> tuple[bool, list[str], str]:
         try:
-            result = self.trino_service.validate_query(sql_query, connection_options=connection_options)
+            result = self.trino_service.validate_query(sql_query)
             self._validate_columns(result)
             return True, result.columns, 'SQL query looks valid.'
         except Exception as exc:

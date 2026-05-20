@@ -1,7 +1,7 @@
 import { ArrowLeftOutlined, CheckCircleOutlined, SaveOutlined } from '@ant-design/icons';
-import { Button, Card, Divider, Form, Input, InputNumber, Select, Space, Typography, message } from 'antd';
+import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { api } from '../api';
 import { AccountingMode, PilotPayload } from '../types/api';
@@ -16,13 +16,6 @@ interface PilotFormValues {
   annual_revenue: number;
   accounting_mode: AccountingMode;
   sql_query?: string;
-  trino_host?: string;
-  trino_port?: number;
-  trino_user?: string;
-  trino_password?: string;
-  trino_catalog?: string;
-  trino_schema?: string;
-  trino_http_scheme?: 'http' | 'https';
   additional_pshe_default: number;
 }
 
@@ -35,11 +28,6 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
   const params = useParams();
 
   const pilotId = Number(params.pilotId);
-  const normalizeNullableText = (value?: string) => {
-    if (typeof value !== 'string') return null;
-    const normalized = value.trim();
-    return normalized.length > 0 ? normalized : null;
-  };
 
   useEffect(() => {
     if (mode !== 'edit' || !pilotId) return;
@@ -55,13 +43,6 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
           annual_revenue: Number(pilot.annual_revenue),
           accounting_mode: pilot.accounting_mode,
           sql_query: pilot.sql_query ?? '',
-          trino_host: pilot.trino_host ?? '',
-          trino_port: pilot.trino_port ?? undefined,
-          trino_user: pilot.trino_user ?? '',
-          trino_password: pilot.trino_password ?? '',
-          trino_catalog: pilot.trino_catalog ?? '',
-          trino_schema: pilot.trino_schema ?? '',
-          trino_http_scheme: pilot.trino_http_scheme ?? 'http',
           additional_pshe_default: Number(pilot.additional_pshe_default),
         });
       } catch (error) {
@@ -83,13 +64,6 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
       annual_revenue: Number(values.annual_revenue ?? 0),
       accounting_mode: values.accounting_mode,
       sql_query: sqlMode ? values.sql_query?.trim() || null : null,
-      trino_host: sqlMode ? normalizeNullableText(values.trino_host) : null,
-      trino_port: sqlMode ? values.trino_port ?? null : null,
-      trino_user: sqlMode ? normalizeNullableText(values.trino_user) : null,
-      trino_password: sqlMode ? normalizeNullableText(values.trino_password) : null,
-      trino_catalog: sqlMode ? normalizeNullableText(values.trino_catalog) : null,
-      trino_schema: sqlMode ? normalizeNullableText(values.trino_schema) : null,
-      trino_http_scheme: sqlMode ? values.trino_http_scheme ?? null : null,
       additional_pshe_default: Number(values.additional_pshe_default ?? 0),
       is_active: true,
     };
@@ -120,16 +94,7 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
 
     setValidateLoading(true);
     try {
-      const result = await api.validateSql({
-        sql_query: sql,
-        trino_host: normalizeNullableText(form.getFieldValue('trino_host')),
-        trino_port: form.getFieldValue('trino_port') ?? null,
-        trino_user: normalizeNullableText(form.getFieldValue('trino_user')),
-        trino_password: normalizeNullableText(form.getFieldValue('trino_password')),
-        trino_catalog: normalizeNullableText(form.getFieldValue('trino_catalog')),
-        trino_schema: normalizeNullableText(form.getFieldValue('trino_schema')),
-        trino_http_scheme: form.getFieldValue('trino_http_scheme') ?? null,
-      });
+      const result = await api.validateSql({ sql_query: sql });
       if (result.is_valid) {
         message.success(`SQL корректный. Колонки: ${result.columns.join(', ')}`);
       } else {
@@ -168,8 +133,6 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
           initialValues={{
             annual_revenue: 0,
             accounting_mode: 'manual',
-            trino_port: 8080,
-            trino_http_scheme: 'http',
             additional_pshe_default: 0,
           }}
           onValuesChange={(changed) => {
@@ -228,51 +191,21 @@ export const PilotFormPage = ({ mode }: PilotFormPageProps) => {
                 />
               </Form.Item>
               <Typography.Text type="secondary" style={{ display: 'block', marginTop: -6, marginBottom: 10 }}>
-                Рекомендуемый минимальный формат: `cas`, `date` (или `week_start_date`), `hours` (+ `load_percent` опционально). Если CAS уже есть в справочнике сотрудников, ФИО и РЦ подтянутся автоматически.
+                Рекомендуемый минимальный формат: `cas`, `date` (или `week_start_date`), `hours` (+ `load_percent` опционально). Если CAS уже есть в справочнике сотрудников, ФИО и РЦ подтянутся автоматически. Если CAS неизвестен — сотрудник будет создан с заглушками «Неизвестный сотрудник» и «Неизвестный РЦ», которые потом можно отредактировать вручную.
               </Typography.Text>
 
-              <Divider style={{ marginTop: 8, marginBottom: 16 }}>Подключение к Trino</Divider>
-              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                Если поля не заполнены, backend возьмет параметры из `.env`. Можно задать отдельные креды на этот пилот.
-              </Typography.Text>
-
-              <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                <Space style={{ width: '100%' }} wrap>
-                  <Form.Item name="trino_host" label="TRINO_HOST" style={{ minWidth: 280, flex: 1 }}>
-                    <Input placeholder="trino.company.local" />
-                  </Form.Item>
-                  <Form.Item name="trino_port" label="TRINO_PORT" style={{ width: 180 }}>
-                    <InputNumber min={1} max={65535} style={{ width: '100%' }} />
-                  </Form.Item>
-                  <Form.Item name="trino_http_scheme" label="TRINO_HTTP_SCHEME" style={{ width: 220 }}>
-                    <Select
-                      allowClear
-                      options={[
-                        { value: 'http', label: 'http' },
-                        { value: 'https', label: 'https' },
-                      ]}
-                    />
-                  </Form.Item>
-                </Space>
-
-                <Space style={{ width: '100%' }} wrap>
-                  <Form.Item name="trino_user" label="TRINO_USER" style={{ minWidth: 280, flex: 1 }}>
-                    <Input placeholder="service_user" />
-                  </Form.Item>
-                  <Form.Item name="trino_password" label="TRINO_PASSWORD" style={{ minWidth: 280, flex: 1 }}>
-                    <Input.Password placeholder="Пароль (если нужен)" />
-                  </Form.Item>
-                </Space>
-
-                <Space style={{ width: '100%' }} wrap>
-                  <Form.Item name="trino_catalog" label="TRINO_CATALOG" style={{ minWidth: 280, flex: 1 }}>
-                    <Input placeholder="hive" />
-                  </Form.Item>
-                  <Form.Item name="trino_schema" label="TRINO_SCHEMA" style={{ minWidth: 280, flex: 1 }}>
-                    <Input placeholder="default" />
-                  </Form.Item>
-                </Space>
-              </Space>
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="info"
+                showIcon
+                message="Подключение к Trino задается один раз"
+                description={
+                  <>
+                    Параметры подключения (host, user, пароль и т.д.) теперь хранятся глобально и редактируются на странице{' '}
+                    <Link to="/backups">«Бэкап»</Link>. Они применяются ко всем SQL-пилотам.
+                  </>
+                }
+              />
 
               <Button icon={<CheckCircleOutlined />} loading={validateLoading} onClick={() => void handleValidateSql()}>
                 Проверить запрос

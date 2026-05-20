@@ -18,3 +18,12 @@ class TrinoRunRead(BaseModel):
     status: QueryRunStatus
     error_message: str | None
     rows_returned: int
+
+
+class PilotLatestRun(BaseModel):
+    """Latest known refresh state for a SQL pilot — used by the Updates page."""
+
+    pilot_id: int
+    pilot_name: str
+    has_successful_run: bool
+    last_run: TrinoRunRead | None = None
